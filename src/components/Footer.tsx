@@ -10,7 +10,7 @@ const Footer = () => {
           <div>
             <h3 className="text-xl font-bold mb-4">Calafate Transfers</h3>
             <p className="text-calafate-100 mb-4">
-              Servicio de traslados desde el Aeropuerto de El Calafate a todos los hoteles y destinos de la ciudad.
+              Servicio de traslados desde y hacia el Aeropuerto de El Calafate a todos los hoteles y destinos de la ciudad.
             </p>
             <div className="flex space-x-4">
               <a href="#" className="text-white hover:text-glacier-300">
@@ -60,15 +60,15 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-center">
                 <Phone className="h-5 w-5 mr-3 text-glacier-300" />
-                <span>+54 9 3998 XXX XXX</span>
+                <span>+54 9 2966672100</span>
               </li>
               <li className="flex items-center">
                 <Mail className="h-5 w-5 mr-3 text-glacier-300" />
-                <span>info@calafatetransfers.com</span>
+                <span>y.calafate@gmail.com</span>
               </li>
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-3 text-glacier-300 mt-1" />
-                <span>Av. del Libertador 1234, El Calafate, Santa Cruz, Argentina</span>
+                <span>Julio A Roca 460, El Calafate, Santa Cruz, Argentina</span>
               </li>
             </ul>
           </div>
