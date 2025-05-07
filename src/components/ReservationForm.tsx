@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Clock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -50,6 +50,9 @@ const formSchema = z.object({
   date: z.date({
     required_error: "Por favor seleccione una fecha",
   }),
+  time: z.string().min(1, {
+    message: "Por favor seleccione una hora",
+  }),
   flightCompany: z.string().min(1, {
     message: "Por favor ingrese la compañía aérea",
   }),
@@ -91,6 +94,7 @@ export default function ReservationForm() {
       phone: "",
       flightCompany: "",
       flightNumber: "",
+      time: "",
     },
   });
 
@@ -100,13 +104,56 @@ export default function ReservationForm() {
       return;
     }
     
+    // Format the message for WhatsApp
+    const whatsappMessage = formatWhatsAppMessage(values);
+    
+    // Send to WhatsApp
+    const whatsappURL = `https://wa.me/+5492966672100?text=${encodeURIComponent(whatsappMessage)}`;
+    window.open(whatsappURL, '_blank');
+    
     toast({
       title: "Reserva recibida",
-      description: "Su solicitud de reserva ha sido enviada con éxito.",
+      description: "Su solicitud de reserva ha sido enviada a WhatsApp.",
     });
     
     console.log(values);
-    // In a real app, we would send this to an API
+  }
+
+  // Format the message for WhatsApp
+  function formatWhatsAppMessage(values: z.infer<typeof formSchema>) {
+    const originText = values.origin === "airport" ? "Aeropuerto El Calafate" : "Centro de El Calafate";
+    
+    let destinationText = "Desconocido";
+    switch (values.destination) {
+      case "downtown": destinationText = "Centro de El Calafate"; break;
+      case "alto_calafate": destinationText = "Hotel Alto Calafate"; break;
+      case "xelena": destinationText = "Hotel Xelena"; break;
+      case "kosten_aike": destinationText = "Hotel Kosten Aike"; break;
+      case "los_alamos": destinationText = "Hotel Los Álamos"; break;
+      case "airport": destinationText = "Aeropuerto El Calafate"; break;
+    }
+    
+    let vehicleText = "Desconocido";
+    switch (values.vehicleType) {
+      case "sedan": vehicleText = "Sedán (hasta 3 pasajeros)"; break;
+      case "van": vehicleText = "Van (hasta 7 pasajeros)"; break;
+      case "minibus": vehicleText = "Minibús (hasta 15 pasajeros)"; break;
+      case "bus": vehicleText = "Bus (hasta 50 pasajeros)"; break;
+    }
+    
+    return `*NUEVA RESERVA DE TRASLADO*\n\n` +
+      `*Origen:* ${originText}\n` +
+      `*Destino:* ${destinationText}\n` +
+      `*Fecha:* ${format(values.date, "dd/MM/yyyy")}\n` +
+      `*Hora:* ${values.time}\n` +
+      `*Compañía Aérea:* ${values.flightCompany}\n` +
+      `*Número de Vuelo:* ${values.flightNumber}\n` +
+      `*Pasajeros:* ${values.passengers}\n` +
+      `*Tipo de Vehículo:* ${vehicleText}\n\n` +
+      `*Información de Contacto:*\n` +
+      `*Nombre:* ${values.name}\n` +
+      `*Email:* ${values.email}\n` +
+      `*Teléfono:* ${values.phone}`;
   }
 
   return (
@@ -238,35 +285,60 @@ export default function ReservationForm() {
                           )}
                         />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="flightCompany"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Compañía Aérea</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ej: Aerolíneas Argentinas" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
+                        <FormField
+                          control={form.control}
+                          name="time"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hora</FormLabel>
+                              <FormControl>
+                                <div className="flex items-center">
+                                  <Input
+                                    type="time"
+                                    placeholder="Seleccione una hora"
+                                    {...field}
+                                    className="flex-grow"
+                                  />
+                                  <Clock className="ml-2 h-4 w-4 text-gray-400" />
+                                </div>
+                              </FormControl>
+                              <FormDescription>
+                                Hora de su traslado
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
 
-                          <FormField
-                            control={form.control}
-                            name="flightNumber"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Número de Vuelo</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ej: AR1234" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <FormField
+                          control={form.control}
+                          name="flightCompany"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Compañía Aérea</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Ej: Aerolíneas Argentinas" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="flightNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Número de Vuelo</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Ej: AR1234" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
