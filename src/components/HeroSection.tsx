@@ -8,7 +8,7 @@ const HeroSection = () => {
       <div className="container mx-auto px-4">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-white">
-            Traslados desde el Aeropuerto de El Calafate
+            Traslados desde y hacia el Aeropuerto de El Calafate
           </h1>
           <p className="text-lg md:text-xl text-white mb-8">
             Transporte cómodo, seguro y puntual a todos los hoteles y destinos de El Calafate.
