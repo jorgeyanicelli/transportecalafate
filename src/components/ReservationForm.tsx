@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -50,8 +49,11 @@ const formSchema = z.object({
   date: z.date({
     required_error: "Por favor seleccione una fecha",
   }),
-  time: z.string().min(1, {
-    message: "Por favor seleccione una hora",
+  flightCompany: z.string().min(1, {
+    message: "Por favor ingrese la compañía aérea",
+  }),
+  flightNumber: z.string().min(1, {
+    message: "Por favor ingrese el número de vuelo",
   }),
   passengers: z.coerce.number().min(1, {
     message: "Mínimo 1 pasajero",
@@ -86,6 +88,8 @@ export default function ReservationForm() {
       name: "",
       email: "",
       phone: "",
+      flightCompany: "",
+      flightNumber: "",
     },
   });
 
@@ -187,91 +191,75 @@ export default function ReservationForm() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormField
-                          control={form.control}
-                          name="date"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Fecha</FormLabel>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <FormControl>
-                                    <Button
-                                      variant={"outline"}
-                                      className={cn(
-                                        "pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {field.value ? (
-                                        format(field.value, "PPP")
-                                      ) : (
-                                        <span>Seleccione una fecha</span>
-                                      )}
-                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    disabled={(date) =>
-                                      date < new Date()
-                                    }
-                                    initialFocus
-                                    className={cn("p-3 pointer-events-auto")}
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                              <FormDescription>
-                                Fecha de su traslado
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Fecha</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                    "pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Seleccione una fecha</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                  date < new Date()
+                                }
+                                initialFocus
+                                className={cn("p-3 pointer-events-auto")}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormDescription>
+                            Fecha de su traslado
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
 
-                        <FormField
-                          control={form.control}
-                          name="time"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Hora</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="flightCompany"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Compañía Aérea</FormLabel>
                                 <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Seleccione una hora" />
-                                  </SelectTrigger>
+                                  <Input placeholder="Ej: Aerolíneas Argentinas" {...field} />
                                 </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="06:00">06:00</SelectItem>
-                                  <SelectItem value="07:00">07:00</SelectItem>
-                                  <SelectItem value="08:00">08:00</SelectItem>
-                                  <SelectItem value="09:00">09:00</SelectItem>
-                                  <SelectItem value="10:00">10:00</SelectItem>
-                                  <SelectItem value="11:00">11:00</SelectItem>
-                                  <SelectItem value="12:00">12:00</SelectItem>
-                                  <SelectItem value="13:00">13:00</SelectItem>
-                                  <SelectItem value="14:00">14:00</SelectItem>
-                                  <SelectItem value="15:00">15:00</SelectItem>
-                                  <SelectItem value="16:00">16:00</SelectItem>
-                                  <SelectItem value="17:00">17:00</SelectItem>
-                                  <SelectItem value="18:00">18:00</SelectItem>
-                                  <SelectItem value="19:00">19:00</SelectItem>
-                                  <SelectItem value="20:00">20:00</SelectItem>
-                                  <SelectItem value="21:00">21:00</SelectItem>
-                                  <SelectItem value="22:00">22:00</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                Hora prevista para su traslado
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="flightNumber"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Número de Vuelo</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Ej: AR1234" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
