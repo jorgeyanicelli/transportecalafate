@@ -9,7 +9,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center">
           <Link to="/" className="text-2xl font-bold text-calafate-600">
-            Calafate Transfers
+            Traslados Calafate
           </Link>
         </div>
         <nav className="hidden md:flex items-center space-x-8">
