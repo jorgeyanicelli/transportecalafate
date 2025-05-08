@@ -8,8 +8,12 @@ const Navbar = () => {
     <header className="bg-white shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center">
-          <Link to="/" className="text-2xl font-bold text-calafate-600">
-            Traslados Calafate
+          <Link to="/" className="flex items-center">
+            <img 
+              src="/lovable-uploads/9e0b2e07-a1bf-480a-a9aa-0d68f506c0a9.png" 
+              alt="Transporte Calafate" 
+              className="h-12"
+            />
           </Link>
         </div>
         <nav className="hidden md:flex items-center space-x-8">

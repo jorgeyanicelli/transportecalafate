@@ -1,3 +1,4 @@
+
 import { Link } from "react-router-dom";
 import { Phone, Mail, MapPin } from "lucide-react";
 
@@ -7,7 +8,13 @@ const Footer = () => {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <div>
-            <h3 className="text-xl font-bold mb-4">Traslados Calafate</h3>
+            <div className="mb-4">
+              <img 
+                src="/lovable-uploads/9e0b2e07-a1bf-480a-a9aa-0d68f506c0a9.png" 
+                alt="Transporte Calafate" 
+                className="h-16"
+              />
+            </div>
             <p className="text-calafate-100 mb-4">
               Servicio de traslados desde y hacia el Aeropuerto de El Calafate a todos los hoteles y destinos de la ciudad.
             </p>
