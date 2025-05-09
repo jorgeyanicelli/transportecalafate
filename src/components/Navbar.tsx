@@ -12,7 +12,7 @@ const Navbar = () => {
             <img 
               src="/lovable-uploads/9e0b2e07-a1bf-480a-a9aa-0d68f506c0a9.png" 
               alt="Transporte Calafate" 
-              className="h-24" // Aumentado de h-20 a h-24
+              className="h-32" // Aumentado de h-24 a h-32
             />
           </Link>
         </div>
