@@ -12,7 +12,7 @@ const Footer = () => {
               <img 
                 src="/lovable-uploads/9e0b2e07-a1bf-480a-a9aa-0d68f506c0a9.png" 
                 alt="Transporte Calafate" 
-                className="h-16"
+                className="h-20" // Increased from h-16 to h-20
               />
             </div>
             <p className="text-calafate-100 mb-4">
