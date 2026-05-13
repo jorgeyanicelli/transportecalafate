@@ -1,70 +1,79 @@
-## Plan: Update App Color Scheme to Transporte Calafate Brand Colors
 
-### Goal
-Replace the existing teal/cyan "calafate" palette and the supporting "glacier" / "sunset" palettes with the official Transporte Calafate brand colors: dark blue, accent orange, and secondary blue.
+# Plan: Update ReservationForm
 
-### Brand Color Mapping
+Modify only `src/components/ReservationForm.tsx`. Keep 2-step flow, validation pattern (zod + react-hook-form), and WhatsApp submission.
 
-| Role | Hex | Tailwind Shade |
-|------|-----|----------------|
-| Primary dark blue (navbar, headings, footer bg) | #1e3a6e | calafate-900 |
-| Secondary blue (links, hovers) | #2d6a9f | calafate-700 |
-| Accent orange (CTA buttons, highlights) | #f07820 | calafate-600 |
-| Lighter orange (button hovers) | #f59240 | calafate-500 |
+## 1. Schema changes (zod)
 
-### Full Calafate Palette (coherent brand scale)
+Add/modify fields:
+- `serviceType`: enum `["airport_arrival","airport_departure","excursion"]`, required.
+- `luggage`: coerce.number, min 0, default 0.
+- `notes`: string optional (step 2).
+- `destination`: keep, but values depend on context (for airport flows it becomes a free-text "hotel/dirección"; for excursion it's a dropdown value, with `destinationOther` free text when value is `"otro"`).
+- `flightCompany`: still required string but populated via Select.
+- Make `flightCompany`, `flightNumber` required only when serviceType is airport_arrival/airport_departure (use `superRefine` for conditional validation).
+- `destination` required for excursion; `destinationOther` required when destination === "otro".
+- `address` (hotel/dirección) required when airport flow.
 
-```
-calafate-50:  #f0f4f8   (very light blue backgrounds)
-calafate-100: #d6e0ed   (light blue, footer text on dark bg)
-calafate-200: #b0c2db   (borders)
-calafate-300: #8aa3c9   (icons, muted accents)
-calafate-400: #5f85b3   (subdued text)
-calafate-500: #f59240   (lighter orange — exact)
-calafate-600: #f07820   (accent orange — exact)
-calafate-700: #2d6a9f   (secondary blue — exact)
-calafate-800: #244a7a   (dark blue dividers)
-calafate-900: #1e3a6e   (primary dark blue — exact)
-calafate-950: #152a50   (very dark blue)
-```
+## 2. UI changes (step 1, in order)
 
-### Files to Update
+1. **Service type selector** (new, first field): RadioGroup rendered as 3 selectable cards with emoji + label:
+   - ✈️ Llegada al aeropuerto (`airport_arrival`)
+   - 🛫 Salida desde el aeropuerto (`airport_departure`)
+   - 🏔️ Excursión / traslado turístico (`excursion`)
 
-1. **tailwind.config.ts**
-   - Replace entire `calafate` color object with the brand palette above.
-   - Remove `glacier` and `sunset` color objects entirely.
+2. Watch `serviceType` via `form.watch("serviceType")`. Render the rest conditionally:
 
-2. **src/components/Navbar.tsx**
-   - Logo: `className="h-25"` → `className="h-16"`
-   - Nav link hover: `hover:text-calafate-600` → `hover:text-calafate-700` (secondary blue)
-   - Button: `bg-calafate-600 hover:bg-calafate-700` → `bg-calafate-600 hover:bg-calafate-500`
+   **If airport_arrival or airport_departure:**
+   - Airline Select (`flightCompany`): Aerolíneas Argentinas, JetSmart, Flybondi, LADE, Sky Airlines, Privado / charter, Otra
+   - Flight number input (`flightNumber`)
+   - Date + Time
+   - Hotel/dirección free-text input (`address`) — label switches: "Hotel o dirección de destino" (arrival) vs "Hotel o dirección de origen" (departure)
 
-3. **src/components/HeroSection.tsx**
-   - CTA button: `bg-sunset-500 hover:bg-sunset-600` → `bg-calafate-600 hover:bg-calafate-500`
+   **If excursion:**
+   - Destination Select (`destination`): Glaciar Perito Moreno, Lago Argentino, Punta Bandera, Cueva de las Manos, Otro
+   - If `destination === "otro"`: free-text `destinationOther`
+   - Date + Time
+   - Pickup address input (`address`, label "Dirección de recogida")
 
-4. **src/components/FeatureCard.tsx**
-   - Icon circle bg: `bg-glacier-100` → `bg-calafate-100`
-   - Icon color: `text-glacier-600` → `text-calafate-600` (orange accent)
+3. Common fields (always shown after service selected):
+   - Pasajeros (existing)
+   - **Cantidad de valijas** (new number input, min 0, default 0)
+   - Tipo de vehículo Select with new fleet:
+     - Mini Bus (hasta 20 pasajeros) — `minibus`
+     - Mercedes Sprinter (hasta 19 pasajeros) — `sprinter`
+     - Mercedes Vito (hasta 8 pasajeros) — `vito`
+     - Toyota HiAce (hasta 12 pasajeros) — `hiace`
+     - Taxi / Auto privado (hasta 4 pasajeros) — `taxi`
+     - Sin preferencia — `any`
 
-5. **src/components/Footer.tsx**
-   - Social icon hover: `hover:text-glacier-300` → `hover:text-calafate-300`
-   - Contact icons: `text-glacier-300` → `text-calafate-300`
+4. Remove the original `origin` Select (replaced by serviceType context).
 
-6. **src/components/ReservationForm.tsx**
-   - "Continuar" button: `bg-calafate-600 hover:bg-calafate-700` → `bg-calafate-600 hover:bg-calafate-500`
-   - "Confirmar Reserva" button: same change
+## 3. Step 2
 
-7. **src/pages/NotFound.tsx**
-   - Button: `bg-calafate-600 hover:bg-calafate-700` → `bg-calafate-600 hover:bg-calafate-500`
+- Name, Email
+- **WhatsApp** (renamed from Teléfono): label "WhatsApp", placeholder "+54 9 2966 XXXXXX", field key remains `phone`.
+- **Notas adicionales**: Textarea, optional.
 
-### What Will NOT Change
-- Component logic, structure, props, or behavior.
-- Any `calafate-50/100/200/300/400/800/900/950` class names already used in components (their underlying hex values will update automatically via Tailwind config).
-- The `hero-pattern` and `calafate-background` CSS classes in index.css (they reference image assets, not color tokens).
+## 4. WhatsApp message
 
-### Verification
-After editing, confirm the preview shows:
-- Navbar with dark blue link hovers and orange CTA button.
-- Footer with dark blue background.
-- Feature icons with orange color on light blue circles.
-- No visual breakage from removed `glacier` or `sunset` palettes.
+Rebuild `formatWhatsAppMessage` to include:
+- Service type label (Llegada al aeropuerto / Salida desde el aeropuerto / Excursión)
+- Conditional block:
+  - Airport: airline (mapped label), flight number, date, time, hotel/dirección
+  - Excursion: destination (mapped, with Otro free text), date, time, pickup address
+- Pasajeros, Cantidad de valijas, Tipo de vehículo (new mapped names)
+- Contacto: Nombre, Email, **WhatsApp:** value
+- Notas adicionales (if present)
+
+## 5. Technical notes
+
+- Use existing shadcn `RadioGroup`, `Select`, `Textarea`, `Input`, `Calendar`, `Popover`, `Button`.
+- Conditional validation via `formSchema.superRefine` to keep one schema while toggling required fields by serviceType.
+- Reset dependent fields when `serviceType` changes (via `useEffect` watching it) to prevent stale values being submitted.
+- Keep colors/classes (`bg-calafate-600 hover:bg-calafate-500`) unchanged.
+- Step navigation, submit handler, toast, and `wa.me` link unchanged.
+
+## Out of scope
+- No changes to other components, routing, or styling tokens.
+- No backend / persistence changes.
