@@ -25,7 +25,7 @@ const NotFound = () => {
           <p className="text-2xl text-gray-700 mb-8">
             Lo sentimos, la página que estás buscando no existe.
           </p>
-          <Button asChild className="bg-calafate-600 hover:bg-calafate-700">
+          <Button asChild className="bg-calafate-600 hover:bg-calafate-500">
             <Link to="/">Volver al inicio</Link>
           </Button>
         </div>
