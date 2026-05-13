@@ -17,7 +17,7 @@ const HeroSection = () => {
           <div className="flex flex-wrap justify-center gap-4">
             <Button 
               size="lg" 
-              className="bg-sunset-500 hover:bg-sunset-600 text-white px-8"
+              className="bg-calafate-600 hover:bg-calafate-500 text-white px-8"
               onClick={() => document.getElementById('reservation-form')?.scrollIntoView({ behavior: 'smooth' })}
             >
               Reservar Traslado <ArrowRight className="ml-2 h-5 w-5" />

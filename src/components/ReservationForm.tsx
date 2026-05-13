@@ -395,7 +395,7 @@ export default function ReservationForm() {
 
                       <Button 
                         type="submit" 
-                        className="w-full bg-calafate-600 hover:bg-calafate-700"
+                        className="w-full bg-calafate-600 hover:bg-calafate-500"
                       >
                         Continuar
                       </Button>
@@ -462,7 +462,7 @@ export default function ReservationForm() {
                         </Button>
                         <Button 
                           type="submit" 
-                          className="bg-calafate-600 hover:bg-calafate-700"
+                          className="bg-calafate-600 hover:bg-calafate-500"
                         >
                           Confirmar Reserva
                         </Button>
