@@ -14,7 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          airline: string | null
+          assigned_driver_id: string | null
+          assigned_vehicle_id: string | null
+          booking_ref: string | null
+          created_at: string | null
+          destination: string | null
+          excursion_datetime: string | null
+          flight_datetime: string | null
+          flight_number: string | null
+          hotel_address: string | null
+          id: string
+          luggage_count: number | null
+          notes: string | null
+          passenger_count: number | null
+          passenger_email: string
+          passenger_name: string
+          passenger_whatsapp: string
+          service_type: string
+          status: string | null
+          vehicle_preference: string | null
+        }
+        Insert: {
+          airline?: string | null
+          assigned_driver_id?: string | null
+          assigned_vehicle_id?: string | null
+          booking_ref?: string | null
+          created_at?: string | null
+          destination?: string | null
+          excursion_datetime?: string | null
+          flight_datetime?: string | null
+          flight_number?: string | null
+          hotel_address?: string | null
+          id?: string
+          luggage_count?: number | null
+          notes?: string | null
+          passenger_count?: number | null
+          passenger_email: string
+          passenger_name: string
+          passenger_whatsapp: string
+          service_type: string
+          status?: string | null
+          vehicle_preference?: string | null
+        }
+        Update: {
+          airline?: string | null
+          assigned_driver_id?: string | null
+          assigned_vehicle_id?: string | null
+          booking_ref?: string | null
+          created_at?: string | null
+          destination?: string | null
+          excursion_datetime?: string | null
+          flight_datetime?: string | null
+          flight_number?: string | null
+          hotel_address?: string | null
+          id?: string
+          luggage_count?: number | null
+          notes?: string | null
+          passenger_count?: number | null
+          passenger_email?: string
+          passenger_name?: string
+          passenger_whatsapp?: string
+          service_type?: string
+          status?: string | null
+          vehicle_preference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_assigned_driver_id_fkey"
+            columns: ["assigned_driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_assigned_vehicle_id_fkey"
+            columns: ["assigned_vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drivers: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          license_number: string | null
+          name: string
+          phone: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          license_number?: string | null
+          name: string
+          phone?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          license_number?: string | null
+          name?: string
+          phone?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          active: boolean | null
+          capacity: number | null
+          created_at: string | null
+          id: string
+          plate: string | null
+          type: string
+        }
+        Insert: {
+          active?: boolean | null
+          capacity?: number | null
+          created_at?: string | null
+          id?: string
+          plate?: string | null
+          type: string
+        }
+        Update: {
+          active?: boolean | null
+          capacity?: number | null
+          created_at?: string | null
+          id?: string
+          plate?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
