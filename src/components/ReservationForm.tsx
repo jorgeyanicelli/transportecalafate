@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z
   .object({
@@ -114,6 +115,7 @@ const EXCURSION_LABELS: Record<string, string> = {
 export default function ReservationForm() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -150,23 +152,77 @@ export default function ReservationForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceType]);
 
-  function onSubmit(values: FormValues) {
+  async function onSubmit(values: FormValues) {
     if (step === 1) {
       setStep(2);
       return;
     }
-    const whatsappMessage = formatWhatsAppMessage(values);
-    const whatsappURL = `https://wa.me/+5492966672100?text=${encodeURIComponent(whatsappMessage)}`;
-    window.open(whatsappURL, "_blank");
-    toast({
-      title: "Reserva recibida",
-      description: "Su solicitud de reserva ha sido enviada a WhatsApp.",
-    });
+    setSubmitting(true);
+    try {
+      // Generate booking_ref: TC-YYYY-XXXX
+      const year = new Date().getFullYear();
+      const { count } = await supabase
+        .from("bookings")
+        .select("*", { count: "exact", head: true });
+      const seq = String((count ?? 0) + 1).padStart(4, "0");
+      const bookingRef = `TC-${year}-${seq}`;
+
+      // Combine date + time into a timestamptz
+      const [hh, mm] = (values.time || "00:00").split(":").map(Number);
+      const dt = new Date(values.date);
+      dt.setHours(hh || 0, mm || 0, 0, 0);
+      const isAirportSvc =
+        values.serviceType === "airport_arrival" || values.serviceType === "airport_departure";
+
+      const destinationLabel =
+        values.destination === "otro"
+          ? `Otro - ${values.destinationOther ?? ""}`
+          : EXCURSION_LABELS[values.destination ?? ""] ?? null;
+
+      const { error } = await supabase.from("bookings").insert({
+        booking_ref: bookingRef,
+        status: "pending",
+        service_type: values.serviceType,
+        passenger_name: values.name,
+        passenger_email: values.email,
+        passenger_whatsapp: values.phone,
+        passenger_count: values.passengers,
+        luggage_count: values.luggage ?? 0,
+        flight_number: isAirportSvc ? values.flightNumber || null : null,
+        airline: isAirportSvc ? AIRLINE_LABELS[values.flightCompany ?? ""] ?? values.flightCompany ?? null : null,
+        flight_datetime: isAirportSvc ? dt.toISOString() : null,
+        hotel_address: isAirportSvc ? values.address || null : null,
+        destination: values.serviceType === "excursion" ? destinationLabel : null,
+        excursion_datetime: values.serviceType === "excursion" ? dt.toISOString() : null,
+        vehicle_preference: VEHICLE_LABELS[values.vehicleType] ?? values.vehicleType,
+        notes: values.notes || null,
+      });
+
+      if (error) throw error;
+
+      const whatsappMessage = formatWhatsAppMessage(values, bookingRef);
+      const whatsappURL = `https://wa.me/+5492966672100?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappURL, "_blank");
+      toast({
+        title: `¡Reserva ${bookingRef} recibida!`,
+        description: "Te contactaremos pronto por WhatsApp.",
+      });
+    } catch (err) {
+      console.error("Booking insert failed:", err);
+      toast({
+        title: "Error",
+        description: "Error al guardar la reserva. Por favor intentá de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function formatWhatsAppMessage(v: FormValues) {
+  function formatWhatsAppMessage(v: FormValues, bookingRef?: string) {
     const lines: string[] = [];
     lines.push("*NUEVA RESERVA DE TRASLADO*", "");
+    if (bookingRef) lines.push(`*Referencia:* ${bookingRef}`);
     lines.push(`*Tipo de servicio:* ${SERVICE_TYPE_LABELS[v.serviceType]}`);
 
     if (v.serviceType === "airport_arrival" || v.serviceType === "airport_departure") {
@@ -549,8 +605,8 @@ export default function ReservationForm() {
                         <Button type="button" variant="outline" onClick={() => setStep(1)}>
                           Volver
                         </Button>
-                        <Button type="submit" className="bg-calafate-600 hover:bg-calafate-500">
-                          Confirmar Reserva
+                        <Button type="submit" disabled={submitting} className="bg-calafate-600 hover:bg-calafate-500">
+                          {submitting ? "Enviando..." : "Confirmar Reserva"}
                         </Button>
                       </div>
                     </>
