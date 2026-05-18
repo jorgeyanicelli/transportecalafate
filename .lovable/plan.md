@@ -1,56 +1,28 @@
-## Fix ReservationForm Select crash + bugs
+## Fix dead "Continuar" button in ReservationForm
 
-Scope: edits limited to `src/components/ReservationForm.tsx`.
+### Root cause
 
-### 1. Fix Radix Select crash (`removeChild` NotFoundError)
+The form uses one `zodResolver` covering all fields (step 1 + step 2). Clicking "Continuar" triggers `handleSubmit(onSubmit)`, which validates the entire schema. Step 2 fields (`name`, `email`, `phone`) are required but not rendered on step 1, so validation fails silently — error messages attach to unmounted `FormField`s, no toast fires, and `onSubmit` never runs. The button looks dead.
 
-Root cause: conditional render blocks (`{isAirport && ...}`, `{isExcursion && ...}`) live inside the same parent. When `serviceType` switches, React tries to diff sibling Select portals and crashes.
+### Changes (scoped to `src/components/ReservationForm.tsx`)
 
-- Wrap the entire conditional region (everything currently inside `{serviceType && (<>...</>)}`) in a keyed wrapper:
-  ```tsx
-  <div key={serviceType}>...</div>
-  ```
-  This forces a clean unmount/remount on serviceType change.
-- Inside the airline `FormField`, switch to `value={field.value ?? ""}` to guarantee a controlled string (never undefined).
-- Replace the `useEffect` resets with `form.resetField(...)` calls so RHF clears errors and dirty state cleanly:
-  ```ts
-  useEffect(() => {
-    form.resetField("flightCompany", { defaultValue: "" });
-    form.resetField("flightNumber",  { defaultValue: "" });
-    form.resetField("destination",   { defaultValue: "" });
-    form.resetField("destinationOther", { defaultValue: "" });
-    form.resetField("address",       { defaultValue: "" });
-  }, [serviceType]);
-  ```
+1. **Replace the step-1 submit with manual validation.**
+   - Change the "Continuar" button to `type="button"` with an `onClick` handler `handleContinue`.
+   - `handleContinue` calls `form.trigger([...step1Fields])` with only the fields visible on step 1:
+     - Always: `serviceType`, `date`, `time`, `passengers`, `luggage`, `vehicleType`, `address`
+     - If `isAirport`: also `flightCompany`, `flightNumber`
+     - If `isExcursion`: also `destination`, and `destinationOther` when `destination === "otro"`
+   - On success: `setStep(2)`. On failure: show a destructive toast listing missing fields ("Por favor complete los campos requeridos antes de continuar").
+   - Add `console.log("Continuar clicked", { values: form.getValues(), errors: form.formState.errors })` at the top of the handler.
 
-### 2. Airline label
+2. **Keep step-2 submit as-is.** The `<form onSubmit>` still calls `handleSubmit(onSubmit)`; `onSubmit` no longer needs the `if (step === 1)` branch — remove it. Add a `console.log("onSubmit fired", values)` at the top.
 
-Current code already shows `lade: "LADE"` (the "CARGAR" the user saw is likely a stale preview). Verify and keep it as `"LADE"` — no functional change needed but confirm in the diff.
+3. **Service type grid.** Change `grid-cols-1 md:grid-cols-3` to `grid-cols-1 sm:grid-cols-3` so all three options appear side-by-side from the `sm` breakpoint (640px) instead of `md` (768px), preventing the cramped 2-visible state at narrow desktop widths.
 
-### 3. Guarantee non-empty SelectItem values
+4. **No schema changes, no layout changes elsewhere, no edits outside `ReservationForm.tsx`.**
 
-Audit all `<SelectItem value={...}>` in the file (airline, excursion destinations, vehicle type). All current keys are non-empty strings; add a defensive filter so any future falsy key is skipped:
-```tsx
-Object.entries(AIRLINE_LABELS).filter(([v]) => v).map(...)
-```
+### Verification
 
-### 4. Submit error handling
-
-`onSubmit` already has a try/catch. Wrap `form.handleSubmit(onSubmit)` invocation in an outer try/catch shim so validation-side throws are logged too:
-```tsx
-<form onSubmit={(e) => {
-  try { form.handleSubmit(onSubmit)(e); }
-  catch (err) { console.error("Form submit threw:", err); }
-}}>
-```
-Keep existing inner try/catch and toast.
-
-### 5. Verification
-
-After the edit:
-- Run a build check (auto by harness).
-- Use browser tool: open `/`, scroll to form, click "Llegada al aeropuerto", open airline Select, pick JetSmart → confirm no crash. Switch to "Salida desde el aeropuerto" → confirm Select still works. Switch to "Excursión" → confirm airport fields are gone and destination Select works.
-- Submit a complete booking and check console for Supabase insert success + WhatsApp tab opens.
-
-### Out of scope
-No schema, layout, or styling changes; no edits outside `ReservationForm.tsx`.
+- Open `/`, scroll to form, pick "Llegada al aeropuerto", fill airline + flight + address + date + time + vehicle, click Continuar → console logs "Continuar clicked", step advances to 2.
+- Click Continuar with missing fields → destructive toast appears, stays on step 1.
+- Complete step 2 and submit → `onSubmit fired` logs, booking inserts, WhatsApp opens.

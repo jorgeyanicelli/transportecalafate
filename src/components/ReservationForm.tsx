@@ -153,10 +153,7 @@ export default function ReservationForm() {
   }, [serviceType]);
 
   async function onSubmit(values: FormValues) {
-    if (step === 1) {
-      setStep(2);
-      return;
-    }
+    console.log("onSubmit fired", values);
     setSubmitting(true);
     try {
       // Generate booking_ref: TC-YYYY-XXXX
@@ -217,6 +214,40 @@ export default function ReservationForm() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleContinue() {
+    console.log("Continuar clicked", {
+      values: form.getValues(),
+      errors: form.formState.errors,
+    });
+    const step1Fields: (keyof FormValues)[] = [
+      "serviceType",
+      "date",
+      "time",
+      "passengers",
+      "luggage",
+      "vehicleType",
+      "address",
+    ];
+    if (isAirport) step1Fields.push("flightCompany", "flightNumber");
+    if (isExcursion) {
+      step1Fields.push("destination");
+      if (destination === "otro") step1Fields.push("destinationOther");
+    }
+    const ok = await form.trigger(step1Fields as any);
+    if (!ok) {
+      const missing = Object.keys(form.formState.errors).join(", ");
+      toast({
+        title: "Faltan datos",
+        description: missing
+          ? `Por favor complete: ${missing}`
+          : "Por favor complete los campos requeridos antes de continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setStep(2);
   }
 
   function formatWhatsAppMessage(v: FormValues, bookingRef?: string) {
@@ -298,7 +329,7 @@ export default function ReservationForm() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Tipo de servicio</FormLabel>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               {serviceOptions.map((opt) => {
                                 const selected = field.value === opt.value;
                                 return (
@@ -544,7 +575,7 @@ export default function ReservationForm() {
                         </div>
                       )}
 
-                      <Button type="submit" className="w-full bg-calafate-600 hover:bg-calafate-500">
+                      <Button type="button" onClick={handleContinue} className="w-full bg-calafate-600 hover:bg-calafate-500">
                         Continuar
                       </Button>
                     </>
