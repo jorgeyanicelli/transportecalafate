@@ -144,11 +144,11 @@ export default function ReservationForm() {
 
   // Reset dependent fields when service type changes
   useEffect(() => {
-    form.setValue("flightCompany", "");
-    form.setValue("flightNumber", "");
-    form.setValue("destination", "");
-    form.setValue("destinationOther", "");
-    form.setValue("address", "");
+    form.resetField("flightCompany", { defaultValue: "" });
+    form.resetField("flightNumber", { defaultValue: "" });
+    form.resetField("destination", { defaultValue: "" });
+    form.resetField("destinationOther", { defaultValue: "" });
+    form.resetField("address", { defaultValue: "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceType]);
 
@@ -279,7 +279,16 @@ export default function ReservationForm() {
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <form
+                  onSubmit={(e) => {
+                    try {
+                      form.handleSubmit(onSubmit)(e);
+                    } catch (err) {
+                      console.error("Form submit threw:", err);
+                    }
+                  }}
+                  className="space-y-6"
+                >
                   {step === 1 ? (
                     <>
                       {/* Service type selector */}
@@ -316,7 +325,7 @@ export default function ReservationForm() {
                       />
 
                       {serviceType && (
-                        <>
+                        <div key={serviceType} className="space-y-6">
                           {isAirport && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <FormField
@@ -325,14 +334,14 @@ export default function ReservationForm() {
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel>Compañía Aérea</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                       <FormControl>
                                         <SelectTrigger>
                                           <SelectValue placeholder="Seleccione la aerolínea" />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {Object.entries(AIRLINE_LABELS).map(([v, l]) => (
+                                        {Object.entries(AIRLINE_LABELS).filter(([v]) => v).map(([v, l]) => (
                                           <SelectItem key={v} value={v}>
                                             {l}
                                           </SelectItem>
@@ -367,14 +376,14 @@ export default function ReservationForm() {
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel>Destino</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                       <FormControl>
                                         <SelectTrigger>
                                           <SelectValue placeholder="Seleccione el destino" />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {Object.entries(EXCURSION_LABELS).map(([v, l]) => (
+                                        {Object.entries(EXCURSION_LABELS).filter(([v]) => v).map(([v, l]) => (
                                           <SelectItem key={v} value={v}>
                                             {l}
                                           </SelectItem>
@@ -513,14 +522,14 @@ export default function ReservationForm() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Tipo de Vehículo</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value ?? ""}>
                                   <FormControl>
                                     <SelectTrigger>
                                       <SelectValue placeholder="Seleccione un tipo de vehículo" />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    {Object.entries(VEHICLE_LABELS).map(([v, l]) => (
+                                    {Object.entries(VEHICLE_LABELS).filter(([v]) => v).map(([v, l]) => (
                                       <SelectItem key={v} value={v}>
                                         {l}
                                       </SelectItem>
@@ -532,7 +541,7 @@ export default function ReservationForm() {
                               </FormItem>
                             )}
                           />
-                        </>
+                        </div>
                       )}
 
                       <Button type="submit" className="w-full bg-calafate-600 hover:bg-calafate-500">

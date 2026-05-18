@@ -1,79 +1,56 @@
+## Fix ReservationForm Select crash + bugs
 
-# Plan: Update ReservationForm
+Scope: edits limited to `src/components/ReservationForm.tsx`.
 
-Modify only `src/components/ReservationForm.tsx`. Keep 2-step flow, validation pattern (zod + react-hook-form), and WhatsApp submission.
+### 1. Fix Radix Select crash (`removeChild` NotFoundError)
 
-## 1. Schema changes (zod)
+Root cause: conditional render blocks (`{isAirport && ...}`, `{isExcursion && ...}`) live inside the same parent. When `serviceType` switches, React tries to diff sibling Select portals and crashes.
 
-Add/modify fields:
-- `serviceType`: enum `["airport_arrival","airport_departure","excursion"]`, required.
-- `luggage`: coerce.number, min 0, default 0.
-- `notes`: string optional (step 2).
-- `destination`: keep, but values depend on context (for airport flows it becomes a free-text "hotel/dirección"; for excursion it's a dropdown value, with `destinationOther` free text when value is `"otro"`).
-- `flightCompany`: still required string but populated via Select.
-- Make `flightCompany`, `flightNumber` required only when serviceType is airport_arrival/airport_departure (use `superRefine` for conditional validation).
-- `destination` required for excursion; `destinationOther` required when destination === "otro".
-- `address` (hotel/dirección) required when airport flow.
+- Wrap the entire conditional region (everything currently inside `{serviceType && (<>...</>)}`) in a keyed wrapper:
+  ```tsx
+  <div key={serviceType}>...</div>
+  ```
+  This forces a clean unmount/remount on serviceType change.
+- Inside the airline `FormField`, switch to `value={field.value ?? ""}` to guarantee a controlled string (never undefined).
+- Replace the `useEffect` resets with `form.resetField(...)` calls so RHF clears errors and dirty state cleanly:
+  ```ts
+  useEffect(() => {
+    form.resetField("flightCompany", { defaultValue: "" });
+    form.resetField("flightNumber",  { defaultValue: "" });
+    form.resetField("destination",   { defaultValue: "" });
+    form.resetField("destinationOther", { defaultValue: "" });
+    form.resetField("address",       { defaultValue: "" });
+  }, [serviceType]);
+  ```
 
-## 2. UI changes (step 1, in order)
+### 2. Airline label
 
-1. **Service type selector** (new, first field): RadioGroup rendered as 3 selectable cards with emoji + label:
-   - ✈️ Llegada al aeropuerto (`airport_arrival`)
-   - 🛫 Salida desde el aeropuerto (`airport_departure`)
-   - 🏔️ Excursión / traslado turístico (`excursion`)
+Current code already shows `lade: "LADE"` (the "CARGAR" the user saw is likely a stale preview). Verify and keep it as `"LADE"` — no functional change needed but confirm in the diff.
 
-2. Watch `serviceType` via `form.watch("serviceType")`. Render the rest conditionally:
+### 3. Guarantee non-empty SelectItem values
 
-   **If airport_arrival or airport_departure:**
-   - Airline Select (`flightCompany`): Aerolíneas Argentinas, JetSmart, Flybondi, LADE, Sky Airlines, Privado / charter, Otra
-   - Flight number input (`flightNumber`)
-   - Date + Time
-   - Hotel/dirección free-text input (`address`) — label switches: "Hotel o dirección de destino" (arrival) vs "Hotel o dirección de origen" (departure)
+Audit all `<SelectItem value={...}>` in the file (airline, excursion destinations, vehicle type). All current keys are non-empty strings; add a defensive filter so any future falsy key is skipped:
+```tsx
+Object.entries(AIRLINE_LABELS).filter(([v]) => v).map(...)
+```
 
-   **If excursion:**
-   - Destination Select (`destination`): Glaciar Perito Moreno, Lago Argentino, Punta Bandera, Cueva de las Manos, Otro
-   - If `destination === "otro"`: free-text `destinationOther`
-   - Date + Time
-   - Pickup address input (`address`, label "Dirección de recogida")
+### 4. Submit error handling
 
-3. Common fields (always shown after service selected):
-   - Pasajeros (existing)
-   - **Cantidad de valijas** (new number input, min 0, default 0)
-   - Tipo de vehículo Select with new fleet:
-     - Mini Bus (hasta 20 pasajeros) — `minibus`
-     - Mercedes Sprinter (hasta 19 pasajeros) — `sprinter`
-     - Mercedes Vito (hasta 8 pasajeros) — `vito`
-     - Toyota HiAce (hasta 12 pasajeros) — `hiace`
-     - Taxi / Auto privado (hasta 4 pasajeros) — `taxi`
-     - Sin preferencia — `any`
+`onSubmit` already has a try/catch. Wrap `form.handleSubmit(onSubmit)` invocation in an outer try/catch shim so validation-side throws are logged too:
+```tsx
+<form onSubmit={(e) => {
+  try { form.handleSubmit(onSubmit)(e); }
+  catch (err) { console.error("Form submit threw:", err); }
+}}>
+```
+Keep existing inner try/catch and toast.
 
-4. Remove the original `origin` Select (replaced by serviceType context).
+### 5. Verification
 
-## 3. Step 2
+After the edit:
+- Run a build check (auto by harness).
+- Use browser tool: open `/`, scroll to form, click "Llegada al aeropuerto", open airline Select, pick JetSmart → confirm no crash. Switch to "Salida desde el aeropuerto" → confirm Select still works. Switch to "Excursión" → confirm airport fields are gone and destination Select works.
+- Submit a complete booking and check console for Supabase insert success + WhatsApp tab opens.
 
-- Name, Email
-- **WhatsApp** (renamed from Teléfono): label "WhatsApp", placeholder "+54 9 2966 XXXXXX", field key remains `phone`.
-- **Notas adicionales**: Textarea, optional.
-
-## 4. WhatsApp message
-
-Rebuild `formatWhatsAppMessage` to include:
-- Service type label (Llegada al aeropuerto / Salida desde el aeropuerto / Excursión)
-- Conditional block:
-  - Airport: airline (mapped label), flight number, date, time, hotel/dirección
-  - Excursion: destination (mapped, with Otro free text), date, time, pickup address
-- Pasajeros, Cantidad de valijas, Tipo de vehículo (new mapped names)
-- Contacto: Nombre, Email, **WhatsApp:** value
-- Notas adicionales (if present)
-
-## 5. Technical notes
-
-- Use existing shadcn `RadioGroup`, `Select`, `Textarea`, `Input`, `Calendar`, `Popover`, `Button`.
-- Conditional validation via `formSchema.superRefine` to keep one schema while toggling required fields by serviceType.
-- Reset dependent fields when `serviceType` changes (via `useEffect` watching it) to prevent stale values being submitted.
-- Keep colors/classes (`bg-calafate-600 hover:bg-calafate-500`) unchanged.
-- Step navigation, submit handler, toast, and `wa.me` link unchanged.
-
-## Out of scope
-- No changes to other components, routing, or styling tokens.
-- No backend / persistence changes.
+### Out of scope
+No schema, layout, or styling changes; no edits outside `ReservationForm.tsx`.
