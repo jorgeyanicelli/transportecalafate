@@ -385,20 +385,18 @@ export default function ReservationForm() {
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel>Compañía Aérea</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Seleccione la aerolínea" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
+                                    <FormControl>
+                                      <select
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                      >
+                                        <option value="">Seleccione la aerolínea</option>
                                         {Object.entries(AIRLINE_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                          <SelectItem key={v} value={v}>
-                                            {l}
-                                          </SelectItem>
+                                          <option key={v} value={v}>{l}</option>
                                         ))}
-                                      </SelectContent>
-                                    </Select>
+                                      </select>
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -427,20 +425,18 @@ export default function ReservationForm() {
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel>Destino</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Seleccione el destino" />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
+                                    <FormControl>
+                                      <select
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                      >
+                                        <option value="">Seleccione el destino</option>
                                         {Object.entries(EXCURSION_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                          <SelectItem key={v} value={v}>
-                                            {l}
-                                          </SelectItem>
+                                          <option key={v} value={v}>{l}</option>
                                         ))}
-                                      </SelectContent>
-                                    </Select>
+                                      </select>
+                                    </FormControl>
                                     <FormMessage />
                                   </FormItem>
                                 )}
@@ -590,20 +586,18 @@ export default function ReservationForm() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Tipo de Vehículo</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Seleccione un tipo de vehículo" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
+                                <FormControl>
+                                  <select
+                                    {...field}
+                                    value={field.value ?? ""}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  >
+                                    <option value="">Seleccione un tipo de vehículo</option>
                                     {Object.entries(VEHICLE_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                      <SelectItem key={v} value={v}>
-                                        {l}
-                                      </SelectItem>
+                                      <option key={v} value={v}>{l}</option>
                                     ))}
-                                  </SelectContent>
-                                </Select>
+                                  </select>
+                                </FormControl>
                                 <FormDescription>Seleccione el tipo de vehículo para su traslado</FormDescription>
                                 <FormMessage />
                               </FormItem>
