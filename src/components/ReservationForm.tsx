@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z
@@ -112,10 +113,26 @@ const EXCURSION_LABELS: Record<string, string> = {
   otro: "Otro",
 };
 
+const FIELD_LABELS: Record<string, string> = {
+  serviceType: "Tipo de servicio",
+  date: "Fecha",
+  time: "Hora",
+  address: "Hotel/Dirección",
+  flightCompany: "Compañía aérea",
+  flightNumber: "Número de vuelo",
+  destination: "Destino",
+  destinationOther: "Especifique destino",
+  passengers: "Pasajeros",
+  luggage: "Valijas",
+  vehicleType: "Tipo de vehículo",
+};
+
 export default function ReservationForm() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -207,6 +224,7 @@ export default function ReservationForm() {
   }
 
   async function handleContinue() {
+    console.log("Continuar tapped", form.getValues());
     console.log("Continuar clicked", {
       values: form.getValues(),
       errors: form.formState.errors,
@@ -227,7 +245,10 @@ export default function ReservationForm() {
     }
     const ok = await form.trigger(step1Fields as any);
     if (!ok) {
-      const missing = Object.keys(form.formState.errors).join(", ");
+      const errorKeys = Object.keys(form.formState.errors);
+      const labels = errorKeys.map((k) => FIELD_LABELS[k] ?? k);
+      setValidationErrors(labels);
+      const missing = labels.join(", ");
       toast({
         title: "Faltan datos",
         description: missing
@@ -237,6 +258,7 @@ export default function ReservationForm() {
       });
       return;
     }
+    setValidationErrors([]);
     setStep(2);
   }
 
@@ -312,6 +334,21 @@ export default function ReservationForm() {
                 >
                   {step === 1 ? (
                     <>
+                      {validationErrors.length > 0 && (
+                        <div
+                          role="alert"
+                          className="rounded-md border border-destructive bg-destructive/10 text-destructive p-3 text-sm"
+                        >
+                          <p className="font-medium mb-1">
+                            Por favor complete los siguientes campos:
+                          </p>
+                          <ul className="list-disc list-inside">
+                            {validationErrors.map((e) => (
+                              <li key={e}>{e}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {/* Service type selector */}
                       <FormField
                         control={form.control}
@@ -440,6 +477,22 @@ export default function ReservationForm() {
                               render={({ field }) => (
                                 <FormItem className="flex flex-col">
                                   <FormLabel>Fecha</FormLabel>
+                                  {isMobile ? (
+                                    <FormControl>
+                                      <Input
+                                        type="date"
+                                        value={field.value ? format(field.value, "yyyy-MM-dd") : ""}
+                                        min={format(new Date(), "yyyy-MM-dd")}
+                                        onChange={(e) =>
+                                          field.onChange(
+                                            e.target.value
+                                              ? new Date(e.target.value + "T00:00:00")
+                                              : undefined,
+                                          )
+                                        }
+                                      />
+                                    </FormControl>
+                                  ) : (
                                   <Popover>
                                     <PopoverTrigger asChild>
                                       <FormControl>
@@ -466,6 +519,7 @@ export default function ReservationForm() {
                                       />
                                     </PopoverContent>
                                   </Popover>
+                                  )}
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -565,7 +619,7 @@ export default function ReservationForm() {
                         </div>
                       )}
 
-                      <Button type="button" onClick={handleContinue} className="w-full bg-calafate-600 hover:bg-calafate-500">
+                      <Button type="button" onClick={handleContinue} className="w-full min-h-[48px] py-3 text-base bg-calafate-600 hover:bg-calafate-500">
                         Continuar
                       </Button>
                     </>
