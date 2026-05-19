@@ -1,37 +1,50 @@
-## Fix mobile "Continuar" on ReservationForm
+## Fix: replace Radix Select with native `<select>` in ReservationForm
 
-Scope: `src/components/ReservationForm.tsx` only.
+Scope: `src/components/ReservationForm.tsx` only. No other component, no validation change, no redesign.
 
-### 1. Visible inline validation errors (replaces silent toast on mobile)
-- Add `const [validationErrors, setValidationErrors] = useState<string[]>([]);`
-- At the very top of `handleContinue`, add `console.log("Continuar tapped", form.getValues());`
-- After `form.trigger(step1Fields)`:
-  - If `!ok`: build a human-readable label list from `form.formState.errors` using a `FIELD_LABELS` map (e.g. `serviceType → "Tipo de servicio"`, `date → "Fecha"`, `time → "Hora"`, `address → "Hotel/Dirección"`, `flightCompany → "Compañía aérea"`, `flightNumber → "Número de vuelo"`, `destination → "Destino"`, `destinationOther → "Especifique destino"`, `passengers → "Pasajeros"`, `luggage → "Valijas"`, `vehicleType → "Tipo de vehículo"`). Call `setValidationErrors(labels)` and `return`.
-  - If `ok`: `setValidationErrors([])` then `setStep(2)`.
-- Render a red banner at the top of step 1 (inside the `step === 1` branch, before the service-type field) when `validationErrors.length > 0`:
-  ```
-  <div role="alert" className="rounded-md border border-destructive bg-destructive/10 text-destructive p-3 text-sm">
-    <p className="font-medium mb-1">Por favor complete los siguientes campos:</p>
-    <ul className="list-disc list-inside">{validationErrors.map(...)}</ul>
-  </div>
-  ```
-- Keep the existing toast call as a secondary signal.
+### Why
+Radix UI Select crashes the app (white screen) on mobile when any dropdown is tapped. Native `<select>` opens the OS picker on mobile, never crashes, and works with react-hook-form via `{...field}`.
 
-### 2. Native date input on mobile, Calendar Popover on ≥ md
-- Add a `useIsMobile` import from `@/hooks/use-mobile`.
-- In the `date` `FormField`, branch on `isMobile`:
-  - Mobile: `<Input type="date" value={field.value ? format(field.value, "yyyy-MM-dd") : ""} min={format(new Date(), "yyyy-MM-dd")} onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value + "T00:00:00") : undefined)} />`
-  - Desktop: existing Popover + Calendar block unchanged.
+### Changes
 
-### 3. Larger touch target on Continuar button
-- Update the Continuar `<Button>`: add `min-h-[48px] py-3 text-base` to className. Keep `type="button"` and `onClick={handleContinue}`.
+1. **Remove imports** (lines 21-27): delete the `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue` import block from `@/components/ui/select`.
 
-### 4. Responsive grid sanity check
-- The grids already use `grid-cols-1 md:grid-cols-2`. Confirm and leave unchanged (no edit needed). The service-type grid stays `grid-cols-1 sm:grid-cols-3` so the three options fit on small tablets.
+2. **Replace 3 Select blocks** with native `<select>` wrapped in FormField/FormControl. Reuse existing `*_LABELS` maps already in the file.
+
+   - **`flightCompany`** (Compañía Aérea, ~line 389-412) → native select over `AIRLINE_LABELS`.
+   - **`destination`** (Destino, in excursion branch around line 431+) → native select over `EXCURSION_LABELS`. Keep the conditional `destinationOther` input untouched.
+   - **`vehicleType`** (Tipo de Vehículo, further down) → native select over `VEHICLE_LABELS`.
+
+   Pattern for each:
+   ```tsx
+   <FormField
+     control={form.control}
+     name="FIELD"
+     render={({ field }) => (
+       <FormItem>
+         <FormLabel>LABEL</FormLabel>
+         <FormControl>
+           <select
+             {...field}
+             value={field.value ?? ""}
+             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+           >
+             <option value="">Seleccione...</option>
+             {Object.entries(LABELS).filter(([v]) => v).map(([v, l]) => (
+               <option key={v} value={v}>{l}</option>
+             ))}
+           </select>
+         </FormControl>
+         <FormMessage />
+       </FormItem>
+     )}
+   />
+   ```
+
+### Out of scope (do not touch)
+Calendar, Popover, Input, Textarea, Toast, validation logic, schema, onSubmit, layout, styling beyond the select itself.
 
 ### Verification
-1. Open preview on mobile viewport (375px). Select "Llegada al aeropuerto".
-2. Tap Continuar with empty fields → red banner lists missing fields.
-3. Fill all fields (date via native picker), tap Continuar → advances to step 2.
-4. Console shows `Continuar tapped {...}` with current values.
-5. Desktop unchanged: Popover Calendar still appears at ≥ 768px.
+- Build passes, no unused-import warnings.
+- Mobile: tapping airline/destination/vehicle opens the native OS picker, no white screen.
+- Selecting a value updates the form and Continuar advances to step 2.
