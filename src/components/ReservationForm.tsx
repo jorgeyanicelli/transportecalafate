@@ -142,16 +142,6 @@ export default function ReservationForm() {
   const isAirport = serviceType === "airport_arrival" || serviceType === "airport_departure";
   const isExcursion = serviceType === "excursion";
 
-  // Reset dependent fields when service type changes
-  useEffect(() => {
-    form.resetField("flightCompany", { defaultValue: "" });
-    form.resetField("flightNumber", { defaultValue: "" });
-    form.resetField("destination", { defaultValue: "" });
-    form.resetField("destinationOther", { defaultValue: "" });
-    form.resetField("address", { defaultValue: "" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceType]);
-
   async function onSubmit(values: FormValues) {
     console.log("onSubmit fired", values);
     setSubmitting(true);
