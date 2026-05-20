@@ -1,32 +1,12 @@
-## Replace Radix Select with native `<select>` in ReservationForm
+## Status: already implemented
 
-**File:** `src/components/ReservationForm.tsx` only.
+All 3 Radix `<Select>` blocks in `src/components/ReservationForm.tsx` have already been replaced with native `<select>` elements following the exact pattern requested:
 
-### Changes
+- `flightCompany` → native `<select>` over `AIRLINE_LABELS`
+- `destination` → native `<select>` over `EXCURSION_LABELS` (conditional `destinationOther` input untouched)
+- `vehicleType` → native `<select>` over `VEHICLE_LABELS`
 
-1. **Remove imports** from `@/components/ui/select` (`Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`).
+Imports from `@/components/ui/select` have been removed. The remaining `Select` reference in the file is `onSelect` on the Calendar (unrelated, explicitly out of scope).
 
-2. **Replace 3 `<Select>` blocks** with native `<select>` wrapped in `FormField` / `FormControl`:
-   - `flightCompany` → options from `AIRLINE_LABELS`
-   - `destination` → options from `EXCURSION_LABELS` (keep conditional `destinationOther` input untouched)
-   - `vehicleType` → options from `VEHICLE_LABELS`
-
-   Pattern:
-   ```tsx
-   <select
-     {...field}
-     value={field.value ?? ""}
-     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-   >
-     <option value="">Seleccione...</option>
-     {Object.entries(LABELS).filter(([v]) => v).map(([v, l]) => (
-       <option key={v} value={v}>{l}</option>
-     ))}
-   </select>
-   ```
-
-### Out of scope
-Calendar, Popover, Toast, Input, validation, schema, onSubmit, layout — untouched.
-
-### Verification
-Build clean (no unused imports). On mobile, taps open native OS picker; selecting a value updates the form and Continuar advances to step 2.
+### No action required
+Nothing to plan or change. If you're still seeing a white screen on mobile, let me know and I'll investigate a different cause (e.g. Calendar/Popover, Toaster portal, an error in another component).
