@@ -1,693 +1,654 @@
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Plane, PlaneTakeoff, Mountain } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, MessageCircle, Plane, PlaneTakeoff, Mountain } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
-const formSchema = z
-  .object({
-    serviceType: z.enum(["airport_arrival", "airport_departure", "excursion"], {
-      required_error: "Por favor seleccione el tipo de servicio",
-    }),
-    destination: z.string().optional(),
-    destinationOther: z.string().optional(),
-    address: z.string().optional(),
-    date: z.date({ required_error: "Por favor seleccione una fecha" }),
-    time: z.string().min(1, { message: "Por favor seleccione una hora" }),
-    flightCompany: z.string().optional(),
-    flightNumber: z.string().optional(),
-    passengers: z.coerce.number().min(1, { message: "Mínimo 1 pasajero" }).max(50, { message: "Máximo 50 pasajeros" }),
-    luggage: z.coerce.number().min(0, { message: "Mínimo 0 valijas" }).default(0),
-    vehicleType: z.string().min(1, { message: "Por favor seleccione un tipo de vehículo" }),
-    name: z.string().min(3, { message: "Por favor ingrese su nombre" }),
-    email: z.string().email({ message: "Por favor ingrese un correo electrónico válido" }),
-    phone: z.string().min(5, { message: "Por favor ingrese un WhatsApp válido" }),
-    notes: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const isAirport = data.serviceType === "airport_arrival" || data.serviceType === "airport_departure";
-    if (isAirport) {
-      if (!data.flightCompany) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flightCompany"], message: "Seleccione la compañía aérea" });
-      if (!data.flightNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flightNumber"], message: "Ingrese el número de vuelo" });
-      if (!data.address) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["address"], message: "Ingrese hotel o dirección" });
-    }
-    if (data.serviceType === "excursion") {
-      if (!data.destination) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["destination"], message: "Seleccione el destino" });
-      if (data.destination === "otro" && !data.destinationOther) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["destinationOther"], message: "Especifique el destino" });
-      }
-      if (!data.address) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["address"], message: "Ingrese dirección de recogida" });
-    }
-  });
+type ServiceType = "airport_arrival" | "airport_departure" | "tourist_transfer";
+type View = "form" | "success" | "urgent" | "otros";
 
-type FormValues = z.infer<typeof formSchema>;
+const WHATSAPP_NUMBER = "5492966672100";
 
-const SERVICE_TYPE_LABELS: Record<string, string> = {
+const SERVICE_LABELS: Record<ServiceType, string> = {
   airport_arrival: "Llegada al aeropuerto",
-  airport_departure: "Salida desde el aeropuerto",
-  excursion: "Excursión / traslado turístico",
+  airport_departure: "Salida al aeropuerto",
+  tourist_transfer: "Traslado turístico",
 };
 
-const AIRLINE_LABELS: Record<string, string> = {
-  aerolineas: "Aerolíneas Argentinas",
-  jetsmart: "JetSmart",
-  flybondi: "Flybondi",
-  lade: "LADE",
-  sky: "Sky Airlines",
-  privado: "Privado / charter",
-  otra: "Otra",
+const AIRLINES = [
+  "Aerolíneas Argentinas",
+  "JetSmart",
+  "Flybondi",
+  "LADE",
+  "Sky Airlines",
+  "Privado / charter",
+  "Otra",
+];
+
+const DESTINATIONS = [
+  "Glaciar Perito Moreno",
+  "Puerto Bandera",
+  "El Chaltén - Traslado simple",
+  "El Chaltén - Ida espera y regreso",
+  "Otros traslados o combinaciones",
+];
+const OTROS_DEST = "Otros traslados o combinaciones";
+
+const VEHICLES = [
+  "Mini Bus",
+  "Mercedes Sprinter",
+  "Mercedes Vito",
+  "Toyota HiAce",
+  "Taxi / Auto privado",
+  "Sin preferencia",
+];
+
+type FormState = {
+  serviceType: ServiceType | "";
+  airline: string;
+  flightNumber: string;
+  destination: string;
+  date: string;
+  time: string;
+  address: string;
+  passengers: number;
+  luggage: number;
+  vehicle: string;
+  name: string;
+  email: string;
+  phone: string;
+  notes: string;
 };
 
-const VEHICLE_LABELS: Record<string, string> = {
-  minibus: "Mini Bus (hasta 20 pasajeros)",
-  sprinter: "Mercedes Sprinter (hasta 19 pasajeros)",
-  vito: "Mercedes Vito (hasta 8 pasajeros)",
-  hiace: "Toyota HiAce (hasta 12 pasajeros)",
-  taxi: "Taxi / Auto privado (hasta 4 pasajeros)",
-  any: "Sin preferencia",
+const initialState: FormState = {
+  serviceType: "",
+  airline: "",
+  flightNumber: "",
+  destination: "",
+  date: "",
+  time: "",
+  address: "",
+  passengers: 1,
+  luggage: 1,
+  vehicle: "",
+  name: "",
+  email: "",
+  phone: "",
+  notes: "",
 };
 
-const EXCURSION_LABELS: Record<string, string> = {
-  perito_moreno: "Glaciar Perito Moreno",
-  lago_argentino: "Lago Argentino",
-  punta_bandera: "Punta Bandera",
-  cueva_manos: "Cueva de las Manos",
-  otro: "Otro",
-};
+const inputCls =
+  "block w-full min-h-11 rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-calafate-600 focus:border-calafate-600";
+const labelCls = "block text-sm font-medium text-calafate-900 mb-1";
+const errCls = "mt-1 text-sm text-red-600";
 
-const FIELD_LABELS: Record<string, string> = {
-  serviceType: "Tipo de servicio",
-  date: "Fecha",
-  time: "Hora",
-  address: "Hotel/Dirección",
-  flightCompany: "Compañía aérea",
-  flightNumber: "Número de vuelo",
-  destination: "Destino",
-  destinationOther: "Especifique destino",
-  passengers: "Pasajeros",
-  luggage: "Valijas",
-  vehicleType: "Tipo de vehículo",
-};
+function buildWhatsAppText(s: FormState, bookingRef: string, urgent: boolean) {
+  const lines: string[] = [];
+  if (urgent) {
+    lines.push("Hola, quisiera consultar por una reserva urgente con los siguientes datos:");
+  } else {
+    lines.push("*NUEVA RESERVA DE TRASLADO*");
+  }
+  lines.push("", `*Referencia:* ${bookingRef}`);
+  lines.push(`*Tipo de servicio:* ${SERVICE_LABELS[s.serviceType as ServiceType]}`);
+  if (s.serviceType === "airport_arrival" || s.serviceType === "airport_departure") {
+    lines.push(`*Compañía aérea:* ${s.airline}`);
+    lines.push(`*Número de vuelo:* ${s.flightNumber}`);
+  } else if (s.serviceType === "tourist_transfer") {
+    lines.push(`*Destino:* ${s.destination}`);
+  }
+  lines.push(`*Fecha:* ${s.date}`);
+  lines.push(`*Hora:* ${s.time}`);
+  lines.push(`*Hotel / dirección:* ${s.address}`);
+  lines.push(`*Pasajeros:* ${s.passengers}`);
+  lines.push(`*Valijas:* ${s.luggage}`);
+  lines.push(`*Vehículo preferido:* ${s.vehicle}`);
+  lines.push("", "*Contacto:*");
+  lines.push(`*Nombre:* ${s.name}`);
+  lines.push(`*Email:* ${s.email}`);
+  lines.push(`*WhatsApp:* ${s.phone}`);
+  if (s.notes.trim()) lines.push("", `*Notas:* ${s.notes}`);
+  return lines.join("\n");
+}
+
+function openWhatsApp(text: string) {
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank");
+}
 
 export default function ReservationForm() {
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
-  const [step, setStep] = useState(1);
+  const [view, setView] = useState<View>("form");
+  const [step, setStep] = useState<1 | 2>(1);
+  const [state, setState] = useState<FormState>(initialState);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [bookingRef, setBookingRef] = useState<string>("");
+  const [urgentText, setUrgentText] = useState<string>("");
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      serviceType: undefined as unknown as FormValues["serviceType"],
-      destination: "",
-      destinationOther: "",
-      address: "",
-      passengers: 1,
-      luggage: 0,
-      vehicleType: "",
-      name: "",
-      email: "",
-      phone: "",
-      flightCompany: "",
-      flightNumber: "",
-      time: "",
-      notes: "",
-    },
-  });
+  const isAirport =
+    state.serviceType === "airport_arrival" || state.serviceType === "airport_departure";
+  const isTransfer = state.serviceType === "tourist_transfer";
 
-  const serviceType = form.watch("serviceType");
-  const destination = form.watch("destination");
-  const isAirport = serviceType === "airport_arrival" || serviceType === "airport_departure";
-  const isExcursion = serviceType === "excursion";
+  const maxLuggage = useMemo(() => Math.max(1, (state.passengers || 1) * 2), [state.passengers]);
 
-  async function onSubmit(values: FormValues) {
-    console.log("onSubmit fired", values);
+  function update<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setState((s) => ({ ...s, [k]: v }));
+    if (errors[k as string]) setErrors((e) => ({ ...e, [k as string]: "" }));
+  }
+
+  function validateStep1() {
+    const e: Record<string, string> = {};
+    if (!state.serviceType) e.serviceType = "Seleccione el tipo de servicio";
+    if (isAirport) {
+      if (!state.airline) e.airline = "Seleccione la compañía aérea";
+      if (!state.flightNumber.trim()) e.flightNumber = "Ingrese el número de vuelo";
+      if (!state.address.trim()) e.address = "Ingrese hotel o dirección";
+    }
+    if (isTransfer) {
+      if (!state.destination) e.destination = "Seleccione el destino";
+      if (!state.address.trim()) e.address = "Ingrese dirección de recogida";
+    }
+    if (!state.date) e.date = "Seleccione la fecha";
+    if (!state.time) e.time = "Seleccione la hora";
+    if (!state.passengers || state.passengers < 1 || state.passengers > 19)
+      e.passengers = "Entre 1 y 19 pasajeros";
+    if (!state.luggage || state.luggage < 1 || state.luggage > maxLuggage)
+      e.luggage = `Entre 1 y ${maxLuggage} valijas`;
+    if (!state.vehicle) e.vehicle = "Seleccione un tipo de vehículo";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function validateStep2() {
+    const e: Record<string, string> = {};
+    if (state.name.trim().length < 3) e.name = "Ingrese su nombre completo";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email)) e.email = "Email inválido";
+    if (state.phone.trim().length < 8) e.phone = "Ingrese un WhatsApp válido";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function handleContinue() {
+    if (!validateStep1()) return;
+    setStep(2);
+  }
+
+  function handleServiceType(t: ServiceType) {
+    update("serviceType", t);
+    if (t !== "tourist_transfer") update("destination", "");
+    if (t === "tourist_transfer") {
+      update("airline", "");
+      update("flightNumber", "");
+    }
+  }
+
+  function handleDestination(v: string) {
+    if (v === OTROS_DEST) {
+      setView("otros");
+      return;
+    }
+    update("destination", v);
+  }
+
+  async function handleSubmit() {
+    if (!validateStep2()) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      // Generate booking_ref: TC-YYYY-XXXX
+      const serviceDate = new Date(`${state.date}T${state.time}`);
+      const hours = (serviceDate.getTime() - Date.now()) / 3_600_000;
+      const isUrgent = hours < 12;
       const year = new Date().getFullYear();
-      const { count } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true });
-      const seq = String((count ?? 0) + 1).padStart(4, "0");
-      const bookingRef = `TC-${year}-${seq}`;
+      const ref = `TC-${year}-${Date.now()}`;
+      const token = crypto.randomUUID();
 
-      // Combine date + time into a timestamptz
-      const [hh, mm] = (values.time || "00:00").split(":").map(Number);
-      const dt = new Date(values.date);
-      dt.setHours(hh || 0, mm || 0, 0, 0);
-      const isAirportSvc =
-        values.serviceType === "airport_arrival" || values.serviceType === "airport_departure";
-
-      const destinationLabel =
-        values.destination === "otro"
-          ? `Otro - ${values.destinationOther ?? ""}`
-          : EXCURSION_LABELS[values.destination ?? ""] ?? null;
+      const isoDt = serviceDate.toISOString();
+      const airportSvc = state.serviceType === "airport_arrival" || state.serviceType === "airport_departure";
 
       const { error } = await supabase.from("bookings").insert({
-        booking_ref: bookingRef,
+        booking_ref: ref,
         status: "pending",
-        service_type: values.serviceType,
-        passenger_name: values.name,
-        passenger_email: values.email,
-        passenger_whatsapp: values.phone,
-        passenger_count: values.passengers,
-        luggage_count: values.luggage ?? 0,
-        flight_number: isAirportSvc ? values.flightNumber || null : null,
-        airline: isAirportSvc ? AIRLINE_LABELS[values.flightCompany ?? ""] ?? values.flightCompany ?? null : null,
-        flight_datetime: isAirportSvc ? dt.toISOString() : null,
-        hotel_address: isAirportSvc ? values.address || null : null,
-        destination: values.serviceType === "excursion" ? destinationLabel : null,
-        excursion_datetime: values.serviceType === "excursion" ? dt.toISOString() : null,
-        vehicle_preference: VEHICLE_LABELS[values.vehicleType] ?? values.vehicleType,
-        notes: values.notes || null,
+        service_type: state.serviceType as ServiceType,
+        passenger_name: state.name.trim(),
+        passenger_email: state.email.trim(),
+        passenger_whatsapp: state.phone.trim(),
+        passenger_count: state.passengers,
+        luggage_count: state.luggage,
+        flight_number: airportSvc ? state.flightNumber.trim() : null,
+        airline: airportSvc ? state.airline : null,
+        flight_datetime: airportSvc ? isoDt : null,
+        hotel_address: state.address.trim(),
+        destination: state.serviceType === "tourist_transfer" ? state.destination : null,
+        excursion_datetime: state.serviceType === "tourist_transfer" ? isoDt : null,
+        vehicle_preference: state.vehicle,
+        notes: state.notes.trim() || null,
+        is_urgent: isUrgent,
+        confirmation_token: token,
       });
-
       if (error) throw error;
 
-      const whatsappMessage = formatWhatsAppMessage(values, bookingRef);
-      const whatsappURL = `https://wa.me/+5492966672100?text=${encodeURIComponent(whatsappMessage)}`;
-      window.open(whatsappURL, "_blank");
-      toast({
-        title: `¡Reserva ${bookingRef} recibida!`,
-        description: "Te contactaremos pronto por WhatsApp.",
-      });
+      setBookingRef(ref);
+      const waText = buildWhatsAppText(state, ref, isUrgent);
+      if (isUrgent) {
+        setUrgentText(waText);
+        setView("urgent");
+      } else {
+        openWhatsApp(waText);
+        setView("success");
+      }
     } catch (err) {
       console.error("Booking insert failed:", err);
-      toast({
-        title: "Error",
-        description: "Error al guardar la reserva. Por favor intentá de nuevo.",
-        variant: "destructive",
-      });
+      setSubmitError("No pudimos guardar la reserva. Por favor intentá de nuevo.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleContinue() {
-    console.log("Continuar tapped", form.getValues());
-    console.log("Continuar clicked", {
-      values: form.getValues(),
-      errors: form.formState.errors,
-    });
-    const step1Fields: (keyof FormValues)[] = [
-      "serviceType",
-      "date",
-      "time",
-      "passengers",
-      "luggage",
-      "vehicleType",
-      "address",
-    ];
-    if (isAirport) step1Fields.push("flightCompany", "flightNumber");
-    if (isExcursion) {
-      step1Fields.push("destination");
-      if (destination === "otro") step1Fields.push("destinationOther");
-    }
-    const ok = await form.trigger(step1Fields as any);
-    if (!ok) {
-      const errorKeys = Object.keys(form.formState.errors);
-      const labels = errorKeys.map((k) => FIELD_LABELS[k] ?? k);
-      setValidationErrors(labels);
-      const missing = labels.join(", ");
-      toast({
-        title: "Faltan datos",
-        description: missing
-          ? `Por favor complete: ${missing}`
-          : "Por favor complete los campos requeridos antes de continuar.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setValidationErrors([]);
-    setStep(2);
+  function reset() {
+    setState(initialState);
+    setErrors({});
+    setSubmitError(null);
+    setBookingRef("");
+    setUrgentText("");
+    setStep(1);
+    setView("form");
   }
 
-  function formatWhatsAppMessage(v: FormValues, bookingRef?: string) {
-    const lines: string[] = [];
-    lines.push("*NUEVA RESERVA DE TRASLADO*", "");
-    if (bookingRef) lines.push(`*Referencia:* ${bookingRef}`);
-    lines.push(`*Tipo de servicio:* ${SERVICE_TYPE_LABELS[v.serviceType]}`);
+  // ----- Alternate views -----
 
-    if (v.serviceType === "airport_arrival" || v.serviceType === "airport_departure") {
-      lines.push(`*Compañía Aérea:* ${AIRLINE_LABELS[v.flightCompany ?? ""] ?? v.flightCompany ?? "-"}`);
-      lines.push(`*Número de Vuelo:* ${v.flightNumber ?? "-"}`);
-      lines.push(
-        `*${v.serviceType === "airport_arrival" ? "Hotel/dirección de destino" : "Hotel/dirección de origen"}:* ${v.address ?? "-"}`,
-      );
-    } else if (v.serviceType === "excursion") {
-      const destLabel =
-        v.destination === "otro"
-          ? `Otro - ${v.destinationOther ?? ""}`
-          : EXCURSION_LABELS[v.destination ?? ""] ?? "-";
-      lines.push(`*Destino:* ${destLabel}`);
-      lines.push(`*Dirección de recogida:* ${v.address ?? "-"}`);
-    }
-
-    lines.push(`*Fecha:* ${format(v.date, "dd/MM/yyyy")}`);
-    lines.push(`*Hora:* ${v.time}`);
-    lines.push(`*Pasajeros:* ${v.passengers}`);
-    lines.push(`*Cantidad de valijas:* ${v.luggage ?? 0}`);
-    lines.push(`*Tipo de Vehículo:* ${VEHICLE_LABELS[v.vehicleType] ?? v.vehicleType}`);
-    lines.push("", "*Información de Contacto:*");
-    lines.push(`*Nombre:* ${v.name}`);
-    lines.push(`*Email:* ${v.email}`);
-    lines.push(`*WhatsApp:* ${v.phone}`);
-    if (v.notes && v.notes.trim().length > 0) {
-      lines.push("", `*Notas adicionales:* ${v.notes}`);
-    }
-    return lines.join("\n");
+  if (view === "otros") {
+    return (
+      <Section>
+        <Card>
+          <div className="flex flex-col items-center text-center p-6 sm:p-10">
+            <div className="rounded-full bg-orange-100 p-4 mb-4">
+              <MessageCircle className="h-10 w-10 text-[#f07820]" aria-hidden />
+            </div>
+            <h3 className="text-2xl font-bold text-calafate-900 mb-3">Traslado personalizado</h3>
+            <p className="text-gray-700 max-w-xl mb-6">
+              Para traslados especiales o combinaciones, contactanos por WhatsApp y armamos un servicio a tu medida.
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                openWhatsApp(
+                  "Hola, quisiera consultar por un traslado personalizado o combinación que no figura en la lista.",
+                )
+              }
+              className="w-full sm:w-auto min-h-12 px-6 rounded-md bg-[#f07820] hover:bg-[#d96a18] text-white font-semibold inline-flex items-center justify-center gap-2"
+            >
+              <MessageCircle className="h-5 w-5" />
+              Consultar por WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              className="mt-4 text-sm text-calafate-700 hover:underline"
+            >
+              Volver al formulario
+            </button>
+          </div>
+        </Card>
+      </Section>
+    );
   }
 
-  const serviceOptions = [
-    { value: "airport_arrival", icon: Plane, emoji: "✈️", label: "Llegada al aeropuerto" },
-    { value: "airport_departure", icon: PlaneTakeoff, emoji: "🛫", label: "Salida desde el aeropuerto" },
-    { value: "excursion", icon: Mountain, emoji: "🏔️", label: "Excursión / traslado turístico" },
-  ] as const;
+  if (view === "urgent") {
+    return (
+      <Section>
+        <Card>
+          <div className="flex flex-col items-center text-center p-6 sm:p-10">
+            <div className="rounded-full bg-orange-100 p-4 mb-4">
+              <AlertTriangle className="h-10 w-10 text-[#f07820]" aria-hidden />
+            </div>
+            <h3 className="text-2xl font-bold text-calafate-900 mb-3">Consulta urgente</h3>
+            <p className="text-gray-700 max-w-xl mb-6">
+              Por la cercanía del horario solicitado, no podemos garantizar disponibilidad inmediata.
+              Esta NO es una reserva confirmada, sino una consulta que será evaluada por nuestro equipo.
+              Por favor consultanos por WhatsApp tocando el botón de abajo. Si podemos cumplir con tu pedido,
+              te confirmaremos por ese medio.
+            </p>
+            <button
+              type="button"
+              onClick={() => openWhatsApp(urgentText)}
+              className="w-full sm:w-auto min-h-12 px-6 rounded-md bg-[#f07820] hover:bg-[#d96a18] text-white font-semibold inline-flex items-center justify-center gap-2"
+            >
+              <MessageCircle className="h-5 w-5" />
+              Consultar por WhatsApp
+            </button>
+            <p className="mt-4 text-sm text-gray-500">
+              Tu consulta quedó registrada con la referencia <span className="font-semibold">{bookingRef}</span>
+            </p>
+          </div>
+        </Card>
+      </Section>
+    );
+  }
 
+  if (view === "success") {
+    return (
+      <Section>
+        <Card>
+          <div className="flex flex-col items-center text-center p-6 sm:p-10">
+            <div className="rounded-full bg-green-100 p-4 mb-4">
+              <CheckCircle2 className="h-10 w-10 text-green-600" aria-hidden />
+            </div>
+            <h3 className="text-2xl font-bold text-calafate-900 mb-3">¡Reserva recibida!</h3>
+            <p className="text-gray-700 mb-2">
+              Tu reserva quedó registrada con la referencia{" "}
+              <span className="font-semibold">{bookingRef}</span>.
+            </p>
+            <p className="text-gray-600 mb-6">
+              Te contactaremos pronto por WhatsApp para confirmar los detalles.
+            </p>
+            <button
+              type="button"
+              onClick={reset}
+              className="min-h-12 px-6 rounded-md bg-calafate-700 hover:bg-calafate-800 text-white font-semibold"
+            >
+              Hacer otra reserva
+            </button>
+          </div>
+        </Card>
+      </Section>
+    );
+  }
+
+  // ----- Form view -----
+
+  const serviceOptions: { value: ServiceType; icon: typeof Plane; label: string }[] = [
+    { value: "airport_arrival", icon: Plane, label: "Llegada al aeropuerto" },
+    { value: "airport_departure", icon: PlaneTakeoff, label: "Salida al aeropuerto" },
+    { value: "tourist_transfer", icon: Mountain, label: "Traslado turístico" },
+  ];
+
+  return (
+    <Section>
+      <Card>
+        <div className="p-5 sm:p-8">
+          <div className="mb-6">
+            <h3 className="text-xl sm:text-2xl font-bold text-calafate-900">
+              {step === 1 ? "Detalles del viaje" : "Datos de contacto"}
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">Paso {step} de 2</p>
+          </div>
+
+          {step === 1 ? (
+            <div className="space-y-5">
+              <div>
+                <label className={labelCls}>Tipo de servicio</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {serviceOptions.map((opt) => {
+                    const Icon = opt.icon;
+                    const selected = state.serviceType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handleServiceType(opt.value)}
+                        className={cn(
+                          "text-left p-4 rounded-lg border-2 transition-all min-h-[88px]",
+                          selected
+                            ? "border-calafate-700 bg-calafate-50 ring-2 ring-calafate-600/20"
+                            : "border-gray-200 hover:border-calafate-400",
+                        )}
+                      >
+                        <Icon className="h-6 w-6 text-[#f07820] mb-2" />
+                        <div className="font-medium text-sm text-calafate-900">{opt.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {errors.serviceType && <p className={errCls}>{errors.serviceType}</p>}
+              </div>
+
+              {isAirport && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>Compañía aérea</label>
+                    <select
+                      className={inputCls}
+                      value={state.airline}
+                      onChange={(e) => update("airline", e.target.value)}
+                    >
+                      <option value="">Seleccione la aerolínea</option>
+                      {AIRLINES.map((a) => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </select>
+                    {errors.airline && <p className={errCls}>{errors.airline}</p>}
+                  </div>
+                  <div>
+                    <label className={labelCls}>Número de vuelo</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder="Ej: AR1234"
+                      value={state.flightNumber}
+                      onChange={(e) => update("flightNumber", e.target.value)}
+                    />
+                    {errors.flightNumber && <p className={errCls}>{errors.flightNumber}</p>}
+                  </div>
+                </div>
+              )}
+
+              {isTransfer && (
+                <div>
+                  <label className={labelCls}>Destino</label>
+                  <select
+                    className={inputCls}
+                    value={state.destination}
+                    onChange={(e) => handleDestination(e.target.value)}
+                  >
+                    <option value="">Seleccione el destino</option>
+                    {DESTINATIONS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  {errors.destination && <p className={errCls}>{errors.destination}</p>}
+                </div>
+              )}
+
+              {state.serviceType && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>
+                        {isAirport ? "Fecha del vuelo" : "Fecha del traslado"}
+                      </label>
+                      <input
+                        type="date"
+                        className={inputCls}
+                        value={state.date}
+                        onChange={(e) => update("date", e.target.value)}
+                      />
+                      {errors.date && <p className={errCls}>{errors.date}</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>
+                        {isAirport ? "Hora del vuelo" : "Hora del traslado"}
+                      </label>
+                      <input
+                        type="time"
+                        className={inputCls}
+                        value={state.time}
+                        onChange={(e) => update("time", e.target.value)}
+                      />
+                      {errors.time && <p className={errCls}>{errors.time}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>
+                      {isAirport ? "Hotel o dirección" : "Hotel o dirección de recogida"}
+                    </label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder="Ej: Hotel Posada Los Alamos"
+                      value={state.address}
+                      onChange={(e) => update("address", e.target.value)}
+                    />
+                    {errors.address && <p className={errCls}>{errors.address}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>Pasajeros</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={19}
+                        className={inputCls}
+                        value={state.passengers}
+                        onChange={(e) => update("passengers", Math.max(1, Number(e.target.value) || 1))}
+                      />
+                      {errors.passengers && <p className={errCls}>{errors.passengers}</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>Valijas</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={maxLuggage}
+                        className={inputCls}
+                        value={state.luggage}
+                        onChange={(e) => update("luggage", Math.max(1, Number(e.target.value) || 1))}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Máximo 2 valijas por pasajero</p>
+                      {errors.luggage && <p className={errCls}>{errors.luggage}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Tipo de vehículo preferido</label>
+                    <select
+                      className={inputCls}
+                      value={state.vehicle}
+                      onChange={(e) => update("vehicle", e.target.value)}
+                    >
+                      <option value="">Seleccione un vehículo</option>
+                      {VEHICLES.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                    {errors.vehicle && <p className={errCls}>{errors.vehicle}</p>}
+                  </div>
+                </>
+              )}
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleContinue}
+                  className="w-full min-h-12 rounded-md bg-[#f07820] hover:bg-[#d96a18] text-white font-semibold"
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <label className={labelCls}>Nombre completo</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={state.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  autoComplete="name"
+                />
+                {errors.name && <p className={errCls}>{errors.name}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input
+                  type="email"
+                  className={inputCls}
+                  value={state.email}
+                  onChange={(e) => update("email", e.target.value)}
+                  autoComplete="email"
+                />
+                {errors.email && <p className={errCls}>{errors.email}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>WhatsApp (con código de país)</label>
+                <input
+                  type="tel"
+                  className={inputCls}
+                  placeholder="+54 9 2966 XXXXXX"
+                  value={state.phone}
+                  onChange={(e) => update("phone", e.target.value)}
+                  autoComplete="tel"
+                />
+                {errors.phone && <p className={errCls}>{errors.phone}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>Notas adicionales (opcional)</label>
+                <textarea
+                  rows={3}
+                  className={cn(inputCls, "min-h-[90px]")}
+                  value={state.notes}
+                  onChange={(e) => update("notes", e.target.value)}
+                />
+              </div>
+
+              {submitError && (
+                <div className="rounded-md border border-red-300 bg-red-50 text-red-700 p-3 text-sm">
+                  {submitError}
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  disabled={submitting}
+                  className="w-full sm:w-1/3 min-h-12 rounded-md border-2 border-calafate-700 text-calafate-700 font-semibold hover:bg-calafate-50 disabled:opacity-50"
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex-1 min-h-12 rounded-md bg-[#f07820] hover:bg-[#d96a18] text-white font-semibold disabled:opacity-60"
+                >
+                  {submitting ? "Enviando..." : "Confirmar Reserva"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    </Section>
+  );
+}
+
+function Section({ children }: { children: React.ReactNode }) {
   return (
     <section id="reservation-form" className="py-16 bg-white">
       <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-4 text-calafate-900">Reserva Tu Traslado</h2>
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-3 text-calafate-900">
+            Reservá tu traslado
+          </h2>
           <p className="text-center text-gray-600 mb-8">
-            Complete el formulario para reservar su traslado en El Calafate
+            Completá el formulario y te confirmamos por WhatsApp.
           </p>
-
-          <Card className="border-calafate-200 shadow-lg">
-            <CardHeader>
-              <CardTitle>Formulario de Reserva</CardTitle>
-              <CardDescription>
-                {step === 1 ? "Detalles del viaje" : "Información de contacto"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form
-                  onSubmit={(e) => {
-                    try {
-                      form.handleSubmit(onSubmit)(e);
-                    } catch (err) {
-                      console.error("Form submit threw:", err);
-                    }
-                  }}
-                  className="space-y-6"
-                >
-                  {step === 1 ? (
-                    <>
-                      {validationErrors.length > 0 && (
-                        <div
-                          role="alert"
-                          className="rounded-md border border-destructive bg-destructive/10 text-destructive p-3 text-sm"
-                        >
-                          <p className="font-medium mb-1">
-                            Por favor complete los siguientes campos:
-                          </p>
-                          <ul className="list-disc list-inside">
-                            {validationErrors.map((e) => (
-                              <li key={e}>{e}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {/* Service type selector */}
-                      <FormField
-                        control={form.control}
-                        name="serviceType"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tipo de servicio</FormLabel>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              {serviceOptions.map((opt) => {
-                                const selected = field.value === opt.value;
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => field.onChange(opt.value)}
-                                    className={cn(
-                                      "text-left p-4 rounded-lg border-2 transition-all",
-                                      selected
-                                        ? "border-calafate-600 bg-calafate-50 ring-2 ring-calafate-600/20"
-                                        : "border-gray-200 hover:border-calafate-400",
-                                    )}
-                                  >
-                                    <div className="text-2xl mb-1">{opt.emoji}</div>
-                                    <div className="font-medium text-sm text-calafate-900">{opt.label}</div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {serviceType && (
-                        <div key={serviceType} className="space-y-6">
-                          {isAirport && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <FormField
-                                control={form.control}
-                                name="flightCompany"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Compañía Aérea</FormLabel>
-                                    <FormControl>
-                                      <select
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                      >
-                                        <option value="">Seleccione la aerolínea</option>
-                                        {Object.entries(AIRLINE_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                          <option key={v} value={v}>{l}</option>
-                                        ))}
-                                      </select>
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name="flightNumber"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Número de Vuelo</FormLabel>
-                                    <FormControl>
-                                      <Input placeholder="Ej: AR1234" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                          )}
-
-                          {isExcursion && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <FormField
-                                control={form.control}
-                                name="destination"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Destino</FormLabel>
-                                    <FormControl>
-                                      <select
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                      >
-                                        <option value="">Seleccione el destino</option>
-                                        {Object.entries(EXCURSION_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                          <option key={v} value={v}>{l}</option>
-                                        ))}
-                                      </select>
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              {destination === "otro" && (
-                                <FormField
-                                  control={form.control}
-                                  name="destinationOther"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Especifique destino</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="Indique el destino" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <FormField
-                              control={form.control}
-                              name="date"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                  <FormLabel>Fecha</FormLabel>
-                                  {isMobile ? (
-                                    <FormControl>
-                                      <Input
-                                        type="date"
-                                        value={field.value ? format(field.value, "yyyy-MM-dd") : ""}
-                                        min={format(new Date(), "yyyy-MM-dd")}
-                                        onChange={(e) =>
-                                          field.onChange(
-                                            e.target.value
-                                              ? new Date(e.target.value + "T00:00:00")
-                                              : undefined,
-                                          )
-                                        }
-                                      />
-                                    </FormControl>
-                                  ) : (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <FormControl>
-                                        <Button
-                                          variant="outline"
-                                          className={cn(
-                                            "pl-3 text-left font-normal",
-                                            !field.value && "text-muted-foreground",
-                                          )}
-                                        >
-                                          {field.value ? format(field.value, "PPP") : <span>Seleccione una fecha</span>}
-                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                      </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        disabled={(date) => date < new Date()}
-                                        initialFocus
-                                        className={cn("p-3 pointer-events-auto")}
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-                                  )}
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="time"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Hora</FormLabel>
-                                  <FormControl>
-                                    <div className="flex items-center">
-                                      <Input type="time" {...field} className="flex-grow" />
-                                      <Clock className="ml-2 h-4 w-4 text-gray-400" />
-                                    </div>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <FormField
-                            control={form.control}
-                            name="address"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>
-                                  {serviceType === "airport_arrival"
-                                    ? "Hotel o dirección de destino"
-                                    : serviceType === "airport_departure"
-                                    ? "Hotel o dirección de origen"
-                                    : "Dirección de recogida"}
-                                </FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Ej: Hotel Alto Calafate, Av. Libertador 1234" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <FormField
-                              control={form.control}
-                              name="passengers"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Pasajeros</FormLabel>
-                                  <FormControl>
-                                    <Input type="number" {...field} min={1} max={50} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="luggage"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Cantidad de valijas</FormLabel>
-                                  <FormControl>
-                                    <Input type="number" {...field} min={0} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-
-                          <FormField
-                            control={form.control}
-                            name="vehicleType"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Tipo de Vehículo</FormLabel>
-                                <FormControl>
-                                  <select
-                                    {...field}
-                                    value={field.value ?? ""}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                  >
-                                    <option value="">Seleccione un tipo de vehículo</option>
-                                    {Object.entries(VEHICLE_LABELS).filter(([v]) => v).map(([v, l]) => (
-                                      <option key={v} value={v}>{l}</option>
-                                    ))}
-                                  </select>
-                                </FormControl>
-                                <FormDescription>Seleccione el tipo de vehículo para su traslado</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
-
-                      <Button type="button" onClick={handleContinue} className="w-full min-h-[48px] py-3 text-base bg-calafate-600 hover:bg-calafate-500">
-                        Continuar
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 gap-6">
-                        <FormField
-                          control={form.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nombre completo</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Ingrese su nombre completo" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Correo electrónico</FormLabel>
-                              <FormControl>
-                                <Input placeholder="ejemplo@correo.com" {...field} />
-                              </FormControl>
-                              <FormDescription>Recibirá la confirmación en este correo</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="phone"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>WhatsApp</FormLabel>
-                              <FormControl>
-                                <Input placeholder="+54 9 2966 XXXXXX" {...field} />
-                              </FormControl>
-                              <FormDescription>WhatsApp de contacto para el día del traslado</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="notes"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Notas adicionales (opcional)</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  placeholder="Cuéntenos cualquier requisito especial: sillas para bebés, equipaje voluminoso, etc."
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-4 justify-between mt-8">
-                        <Button type="button" variant="outline" onClick={() => setStep(1)}>
-                          Volver
-                        </Button>
-                        <Button type="submit" disabled={submitting} className="bg-calafate-600 hover:bg-calafate-500">
-                          {submitting ? "Enviando..." : "Confirmar Reserva"}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+          {children}
         </div>
       </div>
     </section>
+  );
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl border border-calafate-200 shadow-lg overflow-hidden">
+      {children}
+    </div>
   );
 }

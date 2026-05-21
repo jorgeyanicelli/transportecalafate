@@ -20,13 +20,17 @@ export type Database = {
           assigned_driver_id: string | null
           assigned_vehicle_id: string | null
           booking_ref: string | null
+          calendar_event_id: string | null
+          confirmation_token: string | null
           created_at: string | null
           destination: string | null
+          email_confirmed: boolean
           excursion_datetime: string | null
           flight_datetime: string | null
           flight_number: string | null
           hotel_address: string | null
           id: string
+          is_urgent: boolean
           luggage_count: number | null
           notes: string | null
           passenger_count: number | null
@@ -42,13 +46,17 @@ export type Database = {
           assigned_driver_id?: string | null
           assigned_vehicle_id?: string | null
           booking_ref?: string | null
+          calendar_event_id?: string | null
+          confirmation_token?: string | null
           created_at?: string | null
           destination?: string | null
+          email_confirmed?: boolean
           excursion_datetime?: string | null
           flight_datetime?: string | null
           flight_number?: string | null
           hotel_address?: string | null
           id?: string
+          is_urgent?: boolean
           luggage_count?: number | null
           notes?: string | null
           passenger_count?: number | null
@@ -64,13 +72,17 @@ export type Database = {
           assigned_driver_id?: string | null
           assigned_vehicle_id?: string | null
           booking_ref?: string | null
+          calendar_event_id?: string | null
+          confirmation_token?: string | null
           created_at?: string | null
           destination?: string | null
+          email_confirmed?: boolean
           excursion_datetime?: string | null
           flight_datetime?: string | null
           flight_number?: string | null
           hotel_address?: string | null
           id?: string
+          is_urgent?: boolean
           luggage_count?: number | null
           notes?: string | null
           passenger_count?: number | null
